@@ -483,6 +483,8 @@ void init_idt() {
             SET_IDT_ENTRY(idt[KEYBOARD_IDT], key_irq);
         } else if(i == RTC_IDT) {
             SET_IDT_ENTRY(idt[RTC_IDT], rtc_irq);
+        } else if(i == NE2K_IDT) {
+            SET_IDT_ENTRY(idt[NE2K_IDT], ne2k_irq);
         } else {
             SET_IDT_ENTRY(idt[i], general_irq);
         }

@@ -73,6 +73,9 @@ extern void key_irq();
 // handler for RTC interrupts
 extern void rtc_irq();
 
+// ne2k for network interrupts
+extern void ne2k_irq();
+
 // handler for general interrupts
 extern void general_irq();
 

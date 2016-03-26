@@ -25,6 +25,7 @@
 // interrupts
 .global key_irq
 .global rtc_irq
+.global ne2k_irq
 .global general_irq
 
 /**
@@ -551,6 +552,31 @@ rtc_irq:
 
     // call the function
     call rtc_handle_interrupt
+
+    // restore caller saved registers
+    popl %edx
+    popl %ecx
+    popl %eax
+
+    // return to the interrupt handler
+    iret
+
+/*
+ * ne2k_irq()
+ *
+ * Description: Calls the ne2k handler function and then exits the interrupt cleanly using iret
+ * Inputs: none
+ * Outputs: none
+ * Returns: none
+ */
+ne2k_irq:
+    // save caller saved registers
+    pushl %eax
+    pushl %ecx
+    pushl %edx
+
+    // call the function
+    call ne2k_handler
 
     // restore caller saved registers
     popl %edx

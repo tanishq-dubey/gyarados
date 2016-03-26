@@ -3,6 +3,7 @@
  */
 
 #include "drivers/i8259.h"
+#include "drivers/ne2k.h"
 #include "drivers/rtc.h"
 #include "drivers/speaker.h"
 #include "libs/lib.h"
@@ -186,6 +187,7 @@ void entry (unsigned long magic, unsigned long addr) {
 	init_paging();
 
 	/* Execute the first program (`shell') ... */
+	ne2k_init();
 
 	/* Spin (nicely, so we don't chew up cycles) */
 	asm volatile(".1: hlt; jmp .1;");

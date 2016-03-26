@@ -12,6 +12,7 @@
 
 #define KEYBOARD_IDT   0x21
 #define RTC_IDT        0x28
+#define NE2K_IDT       0x29
 
 // 0 - Division by zero exception
 void divide_by_zero_except();
