@@ -36,17 +36,16 @@ void init_paging(){
 
         //Enabling paging 
         asm volatile (
-                        "mov %%eax, %%cr3 				\n" //moving the address of PD to cr3
-                        "mov %%cr4, %%eax 				\n"
-                        "or  $0x00000010, %%eax 		\n" //setting PSE in cr4 for 4MB pages
-                        "mov %%eax, %%cr4				\n"
-                        "mov %%cr0, %%eax				\n" //enabling the PG flag in CR0
-                        "or  $0x80000000, %%eax			\n"
-                        "mov %%eax, %%cr0"				
-                        : /* no outputs */			
-                        : "a" (pageDirectory)			
-                     );						
-
+                        "mov %%eax, %%cr3         \n" //moving the address of PD to cr3
+                        "mov %%cr4, %%eax         \n"
+                        "or  $0x00000010, %%eax     \n" //setting PSE in cr4 for 4MB pages
+                        "mov %%eax, %%cr4       \n"
+                        "mov %%cr0, %%eax       \n" //enabling the PG flag in CR0
+                        "or  $0x80000000, %%eax     \n"
+                        "mov %%eax, %%cr0"        
+                        : /* no outputs */      
+                        : "a" (pageDirectory)     
+                     );           
 }
 
 int init_new_process(uint32_t process_num){

@@ -1,5 +1,11 @@
 #include "syscall.h"
 
+uint8_t * args;
+uint32_t index = 0;
+uint32_t curr_proc_id_mask = 0;
+uint32_t curr_proc_id = 0;
+pcb_t* curr_proc = NULL;
+
 file_array files_array[MAX_FILES];
 
 uint32_t* stdin_ops_table[4] = {NULL, (uint32_t *) terminal_read, NULL, NULL};
@@ -15,15 +21,17 @@ int32_t halt (uint8_t status) {
     return -1;
 }
 
+
 int32_t execute (const uint8_t * command) {
-    int i = 0;
-    int j = 0;
+
+    pcb_t* prev_proc = curr_proc;
 
     // declare the data associated with the filename
     uint8_t file_name[MAX_FILENAME_LENGTH];
-    char data[32][32];
-    int curr_data_index = 0;
-    int curr_str_index = 0;
+
+    // Holder for program name
+    uint8_t * cmd_name = simple_strtok(command);
+
 
     // declare magic numbers 
     uint8_t buf[NUM_BYTES_STATS];
@@ -32,30 +40,18 @@ int32_t execute (const uint8_t * command) {
     uint32_t entry_point_addr = 0;
     uint32_t curr_read_entry_point = ENTRY_POINT_START;
 
+    // Counter variable
+    uint32_t i;
+    // mask used to search for next available procId
+    uint32_t proc_search_mask = PROGRAM_LOCATION_MASK;
+
     // error if command string is null
-    if(command == NULL || command == NULL_CHAR) {
+    if(command == NULL || command == NULL_CHAR) { 
         return -1;
     }
 
-    for(i = 0; i < 32; i++) {
-        for(j = 0; j < 32; j++) {
-            data[i][j] = '\0';
-        }
-    }
-
-    for(i = 0; i < strlen(command); i++) {
-        if(command[i] == ' ') {
-            data[curr_data_index][curr_str_index] = '\0';
-            curr_data_index++;
-            curr_str_index = 0;
-        } else {
-            data[curr_data_index][curr_str_index] = command[i];
-            curr_str_index++;
-        }
-    }
-
     // copy over filename including null termination
-    strcpy((int8_t *) file_name, (int8_t *) data[0]);
+    strcpy((int8_t *) file_name, (int8_t *) cmd_name);
 
     // read the first four bytes of the file
     if(-1 == fs_read((int8_t*) file_name, buf, NUM_BYTES_STATS)) {
@@ -67,6 +63,30 @@ int32_t execute (const uint8_t * command) {
         return -1;
     }
 
+    printf("%s\n", "ERROR CHECK COMPLETE");
+
+    // Get a free process number
+    for(i = 0; i < MAX_PROG_NUM; i++) {
+        printf("LOOP NUMBER: %d\n", i);
+        if(!(proc_search_mask & curr_proc_id_mask)) {
+            curr_proc_id_mask |= proc_search_mask;
+            curr_proc_id = i;
+            break;
+        } else {
+            proc_search_mask = proc_search_mask >> 1;
+        }
+    }
+
+    curr_proc = (pcb_t*)(_8MB - (_8KB)*(i+1));
+
+    printf("%s\n", "PROC NUM PRE");
+
+    if(i == MAX_PROG_NUM) {
+        return -1;
+    }
+
+    printf("%s %d\n", "PROCESS NUMBER FOUND: ", curr_proc->proc_num);
+
     // get entry point into program
     entry_point_addr |= (buf[curr_read_entry_point] << (3 * 8));
     curr_read_entry_point++;
@@ -77,17 +97,55 @@ int32_t execute (const uint8_t * command) {
     entry_point_addr |= (buf[curr_read_entry_point]);
     curr_read_entry_point++;
 
+    printf("%s\n", "ENTRY POINT SET");
+
     // set up the new page directory
+    init_new_process(curr_proc->proc_num);
+    printf("%s\n", "PAGING ENABLED");
     
+    // Set up PCB
+    curr_proc->proc_num = i;
+    // Should only happen when spawning a initial shell
+    if(prev_proc == NULL){
+        curr_proc->parent = NULL;
+    }
+
+    // Otherwise actually do the setup for the PCB when spawning a proc from the shell
+    curr_proc->parent = prev_proc;
+
+    // Initalize file array to empty and null, then set
+    for(i = 0; i < 8; i++) {
+        curr_proc->fds[i].operations_pointer = NULL;
+        curr_proc->fds[i].inode = NULL;
+        curr_proc->fds[i].file_position = 0;
+        curr_proc->fds[i].flags = 0;
+    }
+
+    // Save current pointers here too
+    asm volatile("movl %%esp, %0" : "=r" (curr_proc->ksp) );
+    asm volatile("movl %%ebp, %0" : "=r" (curr_proc->kbp) );
+
+    // Enable STDIN and STDOUT
+    curr_proc->fds[0].operations_pointer = stdin_ops_table[READ];
+    curr_proc->fds[0].flags= IN_USE;
+
+    curr_proc->fds[1].operations_pointer = stdout_ops_table[WRITE];
+    curr_proc->fds[1].flags = IN_USE;
+
+    printf("%s\n", "PCB SETUP");
+
     // load the program into the correct starting address
-    copy_file_to_addr(data[0], PROGRAM_EXEC_ADDR);
-    
-    // assign a pcb with the new PID
-    
-    // save things
+    copy_file_to_addr(cmd_name, PROGRAM_EXEC_ADDR);
+
+    printf("%s\n", "PROGRAM COPIED TO MEMORY");
+
+    tss.esp0 = _8MB - _8KB * curr_proc_id - 4;
+    tss.ss0 = KERNEL_DS;
+
+    printf("%s\n", "TSS SETUP");
     
     // jump to the file to execute it
-    user_exec(entry_point_addr);
+    jmp_usr_exec(entry_point_addr);
 
     return 0;
 }
@@ -176,4 +234,47 @@ int32_t set_handler (int32_t signum, void * handler_address) {
 
 int32_t sigreturn (void) {
     return -1;
+}
+
+void copy_args(const uint8_t* input, uint32_t nbytes) {       
+        if(input[0] == ' ') {
+            args = NULL;
+            return;
+        }
+
+        uint32_t i = 0;
+        uint32_t arg_length = 0;
+
+        for(i = index + 1; i < nbytes; i++) {
+            args[i - index - 1] = input[i];
+            arg_length++;
+        }
+        args[arg_length] = '\0';
+}
+
+uint8_t* simple_strtok(const uint8_t* input) {
+    uint32_t len = strlen((int8_t*) input);
+    uint8_t* output = (uint8_t*)"PLACEHOLDERPLACEHOLDERPLACEHOLDER";
+    //No Length string
+    if(len == 0) {
+        output = NULL;
+        return output;
+    } else if(input == NULL) {  // NULL input
+        output = NULL;
+        return output;
+    } else if(input[0] == ' ') { // Blank input start
+        output = NULL;
+        return output;
+    } else {
+        uint32_t i = 0;
+        for(i = 0; i < len+1; i++) {
+            if(input[i] == ' ' || input[i] == '\n' || input[i] == '\0') { 
+                break;
+            }
+            output[i] = input[i];
+        }
+        output[i] = '\0';
+        index = i;
+    }
+    return output;
 }
