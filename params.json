@@ -1,0 +1,6 @@
+{
+  "name": "Gyarados",
+  "tagline": "Minimalist Linux Based Operating System.",
+  "body": "![gyaradOS](http://i.imgur.com/keh86ho.png)\r\n\r\n# Features\r\n* GRUB multiboot compliant bootloader\r\n* 32-bit memory architecture\r\n* Segmentation and Paging (virtualized memory)\r\n* ext2fs-like filesystem support\r\n* Drivers for keyboard, mouse input\r\n* Drivers for real time clock, programmable interrupt controller, and PC speaker\r\n* Execution of ELF-formatted user programs\r\n* Multiple shell support\r\n* Round-robin scheduling for active processes\r\n* Full-featured shell with tab autocompletion, clear, and more\r\n\r\n# Screenshots\r\n![cat](http://i.imgur.com/3cO20Yj.png)\r\n![ls](https://i.imgur.com/urqRdRN.png)\r\n",
+  "note": "Don't delete this file! It's used internally to help with page regeneration."
+}
